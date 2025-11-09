@@ -1,0 +1,19 @@
+# .dockerignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Môi trường ảo (nếu có)
+venv/
+.venv/
+
+# Dữ liệu và kết quả không nên đưa vào image
+data/
+output/
+
+# Git
+.git/
+.gitignore

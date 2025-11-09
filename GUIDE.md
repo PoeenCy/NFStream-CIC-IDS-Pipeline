@@ -1,148 +1,219 @@
-# 🧩 Hướng dẫn Sử dụng Pipeline Trích xuất Dữ liệu CIC-IDS-2017
+# Hướng dẫn Cài đặt và Thực thi Pipeline
 
-Tài liệu này hướng dẫn quy trình đầy đủ để sử dụng Docker image đã được xây dựng sẵn nhằm mục đích chuyển đổi các file dữ liệu mạng thô (`.pcap`) của bộ dữ liệu CIC-IDS-2017 thành định dạng Parquet (`.parquet`) hiệu quả hơn.
+Tài liệu này cung cấp hướng dẫn kỹ thuật đầy đủ để cài đặt môi trường, chuẩn bị dữ liệu và thực thi pipeline xử lý dữ liệu từ kho lưu trữ này.
 
----
+## 1. Giới thiệu
 
-## 🎯 Mục tiêu
+Pipeline này được đóng gói bằng Docker và được thiết kế để thực hiện hai nhiệm vụ chính:
 
-Mục tiêu chính là chạy một công cụ đã được đóng gói sẵn để xử lý các file `.pcap` có dung lượng rất lớn thành các file `.parquet` có dung lượng nhỏ hơn và tốc độ truy vấn nhanh hơn, phục vụ cho các bước phân tích dữ liệu về sau.
+1.  **Giai đoạn 1 (Trích xuất):** Đọc các file `.pcap` thô (từ CIC-IDS-2017), sử dụng `nfstream` để trích xuất đặc trưng, và lưu kết quả dưới dạng file `.parquet`.
+2.  **Giai đoạn 2 (Gán nhãn):** (Tùy chọn) Đọc các file `.parquet` đã trích xuất, áp dụng logic gán nhãn tùy chỉnh, và lưu kết quả cuối cùng dưới dạng file `.csv`.
 
----
+## 2. Yêu cầu Cài đặt (Prerequisites)
 
-## 🖥️ Yêu cầu Hệ thống
+Cần đảm bảo các công cụ sau đã được cài đặt và đang hoạt động trên hệ thống:
+*   **Git:** Để tải (clone) kho lưu trữ.
+*   **Docker Desktop:** Để xây dựng (build) và chạy (run) môi trường container. (Tải tại: `https://www.docker.com/products/docker-desktop/`)
+*   **Dung lượng đĩa trống:** Tối thiểu 100GB (khuyến nghị) để chứa bộ dữ liệu `.pcap` gốc và các file `.parquet` đầu ra.
 
-Trước khi bắt đầu, cần đảm bảo hệ thống đáp ứng các yêu cầu sau
-
-- Docker Desktop Đã được cài đặt và đang chạy.  
-  👉 [Tải tại đây](httpswww.docker.comproductsdocker-desktop)
-- Kết nối Internet Để tải Docker image và bộ dữ liệu.
-- Dung lượng đĩa trống lớn Bộ dữ liệu CIC-IDS-2017 rất lớn (hàng chục đến hàng trăm GB).  
-  Cần đảm bảo có đủ không gian lưu trữ cho cả file `.pcap` gốc và file `.parquet` đầu ra.
-- Terminal hoặc PowerShell Để thực thi các dòng lệnh.
-
----
-
-## ⚙️ Quy trình Thực hiện
-
-Vui lòng thực hiện tuần tự theo các bước dưới đây.
-
----
-## Quy trình Thực hiện
+## 3. Quy trình Thực thi
 
 ### Bước 1: Tải Mã nguồn (Clone Repository)
 
-Đầu tiên, tải mã nguồn của pipeline này về máy và di chuyển vào thư mục dự án.
+Mở Terminal hoặc PowerShell, sao chép kho lưu trữ về máy và di chuyển vào thư mục dự án:
 
-```
-# Tải kho lưu trữ
-git clone [https://github.com/PoeenCy/NFStream-CIC-IDS-Pipeline.git](https://github.com/PoeenCy/NFStream-CIC-IDS-Pipeline.git)
-
-# Di chuyển vào thư mục dự án
+```bash
+git clone https://github.com/PoeenCy/NFStream-CIC-IDS-Pipeline.git
 cd NFStream-CIC-IDS-Pipeline
-
 ```
 
-### 🔹 Bước 2: Chuẩn bị dữ liệu Gốc (.pcap)
+### Bước 2: Chuẩn bị Dữ liệu Thô (`.pcap`)
 
-1. Truy cập vào trang web chính thức của bộ dữ liệu CIC-IDS-2017 tại Đại học New Brunswick  
-   🔗 [Bộ dữ liệu thô tại đây!](http://cicresearch.ca/CICDataset/CIC-IDS-2017/Dataset/CIC-IDS-2017/PCAPs/)
-2. Tải về các file `.pcap` cho các ngày cần xử lý (ví dụ  
-   `Monday-WorkingHours.pcap`, `Tuesday-WorkingHours.pcap`, v.v.).
+1.  Tải các file `.pcap` gốc từ trang chủ [CIC-IDS-2017](http://cicresearch.ca/CICDataset/CIC-IDS-2017/Dataset/CIC-IDS-2017/PCAPs/).
+2.  Tạo một thư mục mới tên là `data` bên trong thư mục dự án.
+3.  Sao chép tất cả các file `.pcap` đã tải vào thư mục `data` vừa tạo.
 
-Đặt các file .pcap đó vào thư mục /data có sẵn trong dự án.
-
-Cấu trúc thư mục data/ sẽ trông như sau:
-
+Cấu trúc thư mục của dự án lúc này sẽ là:
+```plaintext
 NFStream-CIC-IDS-Pipeline/
 ├── data/
-│   ├── Friday-WorkingHours.pcap
+│   ├── Monday-WorkingHours.pcap
 │   ├── Tuesday-WorkingHours.pcap
 │   └── ...
-└── labeled/
-│   └── .gitkeep
 ├── src/
-└── ... (các file khác của dự án)
-(Lưu ý: Thư mục data/ được liệt kê trong .gitignore, vì vậy các file dữ liệu lớn sẽ không bị đẩy lên Git).
+│   ├── run_extraction.py
+│   └── run_labeling.py
+├── Dockerfile
+├── docker-compose.yml
+└── ... (các file khác)
+```
+*(Lưu ý: Thư mục `data/` và `output/` được cấu hình trong `.gitignore` để tránh đưa dữ liệu lớn lên Git).*
 
-### 🔹 Bước 3 Chạy Pipeline Trích xuất
+### Bước 3: Xây dựng (Build) Image Docker
 
-Một dòng lệnh duy nhất sẽ được sử dụng để tự động tải image từ Docker Hub và chạy quá trình xử lý.
-
-1. Mở Terminal (macOSLinux) hoặc PowerShell (Windows).  
-2. Dùng lệnh `cd` để điều hướng vào thư mục `NFStream-CIC-IDS-Pipeline`.
-3. Sao chép và chạy lệnh dưới đây. Lệnh này xử lý file `Monday-WorkingHours.pcap`.
-
-💡 Lệnh mẫu cho ngày Thứ Hai
+Trước khi chạy lần đầu tiên, cần build image Docker. Lệnh này sẽ đọc `Dockerfile` và cài đặt tất cả các thư viện (như `nfstream`, `pandas`) vào một image cục bộ tên là `extractor`.
 
 ```bash
-docker run --rm 
--v $(pwd)dataappdata 
--v $(pwd)outputappoutput 
-poeencynfstream-cic-ids-pipelinelatest 
-python srcrun_extraction.py appdataMonday-WorkingHours.pcap appoutputmonday_raw_flows.parquet
-🔹 Lưu ý (Windows PowerShell) Thay $(pwd) bằng ${pwd}.
+docker-compose build
 ```
 
-```
-🧠 Giải thích Lệnh
-docker run --rm:	Khởi chạy container và tự động xóa nó sau khi chạy xong.
--v $(pwd)dataappdata:	Mount thư mục data trên máy host vào appdata trong container.
--v $(pwd)outputappoutput:	Mount thư mục output trên máy host vào appoutput trong container.
-poeencynfstream-cic-ids-pipelinelatest:	Image trên Docker Hub (tự động tải nếu chưa có).
-python srcrun_extraction.py ...:	Lệnh chính để chạy quá trình trích xuất bên trong container.
-```
+### Bước 4: Thực thi Giai đoạn 1 (Trích xuất `.parquet`)
 
-Ví dụ Để xử lý ngày Thứ Ba, chỉ cần thay tên file
+Sử dụng `docker-compose run` để thực thi script `run_extraction.py` bên trong container. Container sẽ tự động ánh xạ (mount) thư mục `data/` (đầu vào) và `output/` (đầu ra).
+
+**Lệnh mẫu (Xử lý ngày Thứ Hai):**
 ```bash
-docker run --rm 
--v $(pwd)dataappdata 
--v $(pwd)outputappoutput 
-poeencynfstream-cic-ids-pipelinelatest 
-python srcrun_extraction.py appdataTuesday-WorkingHours.pcap appoutputtuesday_raw_flows.parquet
+docker-compose run --rm extractor \
+  python src/run_extraction.py /app/data/Monday-WorkingHours.pcap /app/output/monday_raw_flows.parquet
 ```
 
-🔹 Bước 4 Theo dõi Tiến trình và Kiểm tra Kết quả
-Sau khi chạy lệnh, output trên màn hình sẽ bắt đầu bằng
-
---- BẮT ĐẦU TRÍCH XUẤT appdata....pcap ---
-Ngay sau đó, một thanh tiến độ sẽ xuất hiện, cho biết số luồng đã được xử lý.
-
-(Hình 2 Quá trình chạy trong terminal với thanh tiến độ)
-
-⏳ Quá trình này có thể mất vài phút đến vài giờ tùy vào kích thước file và tài nguyên hệ thống.
-
-Khi hoàn tất, sẽ thấy thông báo
+**Lệnh mẫu (Xử lý ngày Thứ Ba):**
+```bash
+docker-compose run --rm extractor \
+  python src/run_extraction.py /app/data/Tuesday-WorkingHours.pcap /app/output/tuesday_raw_flows.parquet
 ```
---- HOÀN THÀNH TRÍCH XUẤT ---
-Sau đó, kiểm tra thư mục output, bạn sẽ thấy file .parquet tương ứng, ví dụ
+- `--rm`: Tự động xóa container sau khi chạy xong để giữ hệ thống sạch sẽ.
+- `extractor`: Tên của service được định nghĩa trong `docker-compose.yml`.
+- `/app/data/` và `/app/output/`: Là các đường dẫn bên trong container, tương ứng với thư mục `data/` và `output/` trên máy của bạn.
+
+Quá trình này sẽ mất nhiều thời gian và sẽ hiển thị một thanh tiến độ trong terminal.
+
+### Bước 5: Kiểm tra Kết quả (Giai đoạn 1)
+
+Sau khi hoàn tất, một thư mục `output/` sẽ được tự động tạo ra (nếu chưa tồn tại) ở thư mục gốc dự án, chứa các file `.parquet` đã được xử lý.
+
+```plaintext
+NFStream-CIC-IDS-Pipeline/
+├── data/
+│   └── ... (file .pcap)
+├── output/
+│   ├── monday_raw_flows.parquet
+│   └── tuesday_raw_flows.parquet
+└── src/
+    └── ...
 ```
+
+### Bước 6: (Tùy chọn) Thực thi Giai đoạn 2 (Gán nhãn `.csv`)
+
+Sau khi đã có file `.parquet`, có thể chạy script `run_labeling.py` để gán nhãn và tạo file `.csv` cuối cùng.
+
+```bash
+docker-compose run --rm extractor \
+  python src/run_labeling.py /app/output/monday_raw_flows.parquet /app/output/monday_labeled_data.csv
 ```
-output
-└── monday_raw_flows.parquet
-(Hình 3 File monday_raw_flows.parquet đã được tạo thành công trong thư mục output)
+
+## 5. Xử lý Hàng loạt (Batch Processing)
+
+Việc chạy từng lệnh cho mỗi file rất tốn thời gian. Các script dưới đây giúp tự động hóa quá trình này.
+
+### 1. Trên Linux/macOS (Bash Script)
+
+Tạo file `run_all.sh` trong thư mục gốc dự án:
+
+```bash
+#!/bin/bash
+# run_all.sh
+# Tự động tìm tất cả file .pcap trong ./data và chạy Giai đoạn 1.
+
+echo "--- BẮT ĐẦU XỬ LÝ HÀNG LOẠT ---"
+# Đảm bảo image được build
+docker-compose build
+
+DATA_DIR="./data"
+OUTPUT_DIR="./output"
+
+# Tạo thư mục output nếu chưa có
+mkdir -p $OUTPUT_DIR
+
+# Kiểm tra thư mục data
+if [ ! -d "$DATA_DIR" ]; then
+    echo "LỖI: Không tìm thấy thư mục 'data'. Vui lòng tạo và đặt các file .pcap vào đó."
+    exit 1
+fi
+
+# Lặp qua từng file .pcap
+for pcap_file in "$DATA_DIR"/*.pcap; do
+    base_name=$(basename "$pcap_file" .pcap)
+    
+    input_path="/app/data/${base_name}.pcap"
+    output_path="/app/output/${base_name,,}_raw_flows.parquet" # Chuyển tên sang chữ thường
+
+    echo "=================================================="
+    echo "Đang xử lý: $base_name"
+    echo "=================================================="
+
+    docker-compose run --rm extractor python src/run_extraction.py "$input_path" "$output_path"
+done
+
+echo "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---"
 ```
 
-🧯 Xử lý Lỗi Thường Gặp
-❌ Lỗi docker command not found
-Nguyên nhân Docker chưa được cài đặt hoặc chưa khởi động.
+**Cách chạy:**
+```bash
+chmod +x run_all.sh
+./run_all.sh
+```
 
-Giải pháp Cài đặt Docker Desktop và đảm bảo Docker đang chạy.
+### 2. Trên Windows (PowerShell Script)
 
-❌ Lỗi File not found (từ bên trong container)
-Nguyên nhân Cấu trúc thư mục sai hoặc bạn chưa cd vào đúng thư mục cic_processing.
+Tạo file `run_all.ps1` trong thư mục gốc dự án:
 
-Giải pháp Kiểm tra lại cấu trúc và đảm bảo bạn đang ở đúng vị trí khi chạy lệnh.
+```powershell
+# run_all.ps1
+# Tự động tìm tất cả file .pcap trong ./data và chạy Giai đoạn 1.
 
-❌ Lỗi (WindowsmacOS) path is not shared hoặc permission denied
-Nguyên nhân Docker chưa được cấp quyền truy cập vào ổ đĩathư mục chứa dự án.
+Write-Host "--- BẮT ĐẦU XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
+# Đảm bảo image được build
+docker-compose build
 
-Giải pháp
+$dataDir = ".\data"
+$outputDir = ".\output"
 
-Mở Docker Desktop → Settings → Resources → File Sharing
+# Tạo thư mục output nếu chưa có
+if (-not (Test-Path $outputDir)) {
+    New-Item -ItemType Directory -Path $outputDir
+}
 
-Bấm vào dấu + để thêm đường dẫn đến thư mục cic_processing
+# Kiểm tra thư mục data
+if (-not (Test-Path $dataDir -PathType Container)) {
+    Write-Host "LỖI: Không tìm thấy thư mục 'data'. Vui lòng tạo và đặt các file .pcap vào đó." -ForegroundColor Red
+    exit 1
+}
 
-Nhấn Apply & Restart
+$pcapFiles = Get-ChildItem -Path $dataDir -Filter *.pcap
 
-(Hình 4 Cài đặt chia sẻ file (File Sharing) trong Docker Desktop)
+foreach ($pcapFile in $pcapFiles) {
+    $baseName = $pcapFile.BaseName
+    
+    $inputPath = "/app/data/$($pcapFile.Name)"
+    $outputPath = "/app/output/$($baseName.ToLower())_raw_flows.parquet" # Chuyển tên sang chữ thường
+
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host "Đang xử lý: $baseName" -ForegroundColor Cyan
+    Write-Host "==================================================" -ForegroundColor Cyan
+
+    docker-compose run --rm extractor python src/run_extraction.py $inputPath $outputPath
+}
+
+Write-Host "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
+```
+
+**Cách chạy:**
+```powershell
+.\run_all.ps1
+```
+*(Lưu ý: Nếu gặp lỗi execution policy, có thể cần chạy `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` trước).*
+
+## 6. Xử lý Sự cố (Troubleshooting)
+
+-   **Lỗi:** `docker: command not found` (hoặc tương tự).
+    -   **Nguyên nhân:** Docker chưa được cài đặt hoặc chưa được khởi động.
+    -   **Giải pháp:** Cài đặt Docker Desktop và đảm bảo nó đang chạy.
+
+-   **Lỗi:** `File not found` (báo từ bên trong container).
+    -   **Nguyên nhân:** Cấu trúc thư mục ở Bước 2 bị sai, hoặc lệnh `docker-compose run` được thực thi từ một thư mục khác.
+    -   **Giải pháp:** Đảm bảo các file `.pcap` nằm trong thư mục `data/` và lệnh được chạy từ thư mục gốc của dự án.
+
+-   **Lỗi (Windows/macOS):** `path is not shared` hoặc `permission denied`.
+    -   **Nguyên nhân:** Docker Desktop cần được cấp quyền để truy cập vào ổ đĩa/thư mục chứa dự án.
+    -   **Giải pháp:** Mở **Settings** của Docker Desktop -> **Resources** -> **File Sharing**. Thêm đường dẫn đến thư mục dự án (ví dụ: `D:\NCKH_Project`) và bấm **Apply & Restart**.
