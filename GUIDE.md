@@ -112,39 +112,39 @@ Tạo file `run_all.sh` trong thư mục gốc dự án:
 ```bash
 #!/bin/bash
 # run_all.sh
-# Tự động tìm tất cả file .pcap trong ./data và chạy Giai đoạn 1.
+# Tu dong tim tat ca file .pcap trong ./data va chay Giai doan 1
 
-echo "--- BẮT ĐẦU XỬ LÝ HÀNG LOẠT ---"
-# Đảm bảo image được build
+echo "--- BAT DAU XU LY HANG LOAT ---"
+# Dam bao image duoc build
 docker-compose build
 
 DATA_DIR="./data"
 OUTPUT_DIR="./output"
 
-# Tạo thư mục output nếu chưa có
+# Tao thu muc output neu chua co
 mkdir -p $OUTPUT_DIR
 
-# Kiểm tra thư mục data
+# Kiem tra thu muc data
 if [ ! -d "$DATA_DIR" ]; then
-    echo "LỖI: Không tìm thấy thư mục 'data'. Vui lòng tạo và đặt các file .pcap vào đó."
+    echo "LOI: Khong tim thay thu muc 'data'. Vui long tao va dat cac file .pcap vao do."
     exit 1
 fi
 
-# Lặp qua từng file .pcap
+# Lap qua tung file .pcap
 for pcap_file in "$DATA_DIR"/*.pcap; do
     base_name=$(basename "$pcap_file" .pcap)
     
     input_path="/app/data/${base_name}.pcap"
-    output_path="/app/output/${base_name,,}_raw_flows.parquet" # Chuyển tên sang chữ thường
+    output_path="/app/output/${base_name,,}_raw_flows.parquet" # Chuyen ten sang chu thuong
 
     echo "=================================================="
-    echo "Đang xử lý: $base_name"
+    echo "Dang xu ly: $base_name"
     echo "=================================================="
 
     docker-compose run --rm extractor python src/run_extraction.py "$input_path" "$output_path"
 done
 
-echo "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---"
+echo "--- HOAN THANH XU LY HANG LOAT ---"
 ```
 
 **Cách chạy:**
@@ -159,23 +159,23 @@ Tạo file `run_all.ps1` trong thư mục gốc dự án:
 
 ```powershell
 # run_all.ps1
-# Tự động tìm tất cả file .pcap trong ./data và chạy Giai đoạn 1.
+# Tu dong tim tat ca file .pcap trong ./data va chay Giai doan 1
 
-Write-Host "--- BẮT ĐẦU XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
-# Đảm bảo image được build
+Write-Host "--- BAT DAU XU LY HANG LOAT ---" -ForegroundColor Green
+# Dam bao image duoc build
 docker-compose build
 
 $dataDir = ".\data"
 $outputDir = ".\output"
 
-# Tạo thư mục output nếu chưa có
+# Tao thu muc output neu chua co
 if (-not (Test-Path $outputDir)) {
     New-Item -ItemType Directory -Path $outputDir
 }
 
-# Kiểm tra thư mục data
+# Kiem tra thu muc data
 if (-not (Test-Path $dataDir -PathType Container)) {
-    Write-Host "LỖI: Không tìm thấy thư mục 'data'. Vui lòng tạo và đặt các file .pcap vào đó." -ForegroundColor Red
+    Write-Host "LOI: Khong tim thay thu muc 'data'. Vui long tao va dat cac file .pcap vao do." -ForegroundColor Red
     exit 1
 }
 
@@ -185,16 +185,16 @@ foreach ($pcapFile in $pcapFiles) {
     $baseName = $pcapFile.BaseName
     
     $inputPath = "/app/data/$($pcapFile.Name)"
-    $outputPath = "/app/output/$($baseName.ToLower())_raw_flows.parquet" # Chuyển tên sang chữ thường
+    $outputPath = "/app/output/$($baseName.ToLower())_raw_flows.parquet" # Chuyen ten sang chu thuong
 
     Write-Host "==================================================" -ForegroundColor Cyan
-    Write-Host "Đang xử lý: $baseName" -ForegroundColor Cyan
+    Write-Host "Dang xu ly: $baseName" -ForegroundColor Cyan
     Write-Host "==================================================" -ForegroundColor Cyan
 
     docker-compose run --rm extractor python src/run_extraction.py $inputPath $outputPath
 }
 
-Write-Host "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
+Write-Host "--- HOAN THANH XU LY HANG LOAT ---" -ForegroundColor Green
 ```
 
 **Cách chạy:**
