@@ -1,77 +1,75 @@
-# Hướng dẫn Cài đặt và Thực thi Pipeline
+# NFStream-CIC-IDS-Pipeline
 
-Tài liệu này cung cấp hướng dẫn kỹ thuật đầy đủ để cài đặt môi trường, chuẩn bị dữ liệu và thực thi pipeline xử lý dữ liệu từ kho lưu trữ này.
+![Python](https://img.shields.io/badge/python-3.10%2B-brightgreen.svg)
+![Docker](https://img.shields.io/badge/docker-Ready-blue.svg)
 
-## 1. Giới thiệu
-
-Pipeline này được đóng gói bằng Docker và được thiết kế để thực hiện hai nhiệm vụ chính:
-
-1.  **Giai đoạn 1 (Trích xuất):** Đọc các file `.pcap` thô (từ CIC-IDS-2017), sử dụng `nfstream` để trích xuất đặc trưng, và lưu kết quả dưới dạng file `.parquet`.
-
-## 2. Yêu cầu Cài đặt (Prerequisites)
-
-Cần đảm bảo các công cụ sau đã được cài đặt và đang hoạt động trên hệ thống:
-*   **Docker Desktop:** Để xây dựng (build) và chạy (run) môi trường container. (Tải tại: `https://www.docker.com/products/docker-desktop/`)
-*   **Dung lượng đĩa trống:** Tối thiểu 100GB (khuyến nghị) để chứa bộ dữ liệu `.pcap` gốc và các file `.parquet` đầu ra.
-
-### 3. Chạy Xử lý
-1.  Mở **PowerShell** (trên Windows) hoặc **Terminal** (trên macOS/Linux).
-2.  Dùng lệnh `cd` để đi vào thư mục `cic_work` của bạn.
-    ```bash
-    cd path/to/your/cic_work
-    ```
-3.  **Sao chép và dán lệnh dưới đây** để xử lý file. Lệnh này sẽ tự động tải image `poeency/nfstream-cic-ids-pipeline` từ Docker Hub về nếu bạn chưa có.
-
-💡 **Lệnh để xử lý ngày Thứ Hai:**
-```bash
-docker run --rm -v "./data:/app/data" -v "./output:/app/output" poeency/nfstream-cic-ids-pipeline:latest python src/run_extraction.py /app/data/Monday-WorkingHours.pcap /app/output/monday_raw_flows.parquet
-```
-
-💡 **Ví dụ: Để xử lý ngày Thứ Ba,** chỉ cần thay đổi tên file:
-```bash
-docker run --rm -v "./data:/app/data" -v "./output:/app/output" poeency/nfstream-cic-ids-pipeline:latest python src/run_extraction.py /app/data/Tuesday-WorkingHours.pcap /app/output/tuesday_raw_flows.parquet
-```
-
-Sau khi lệnh chạy xong, file `.parquet` tương ứng sẽ xuất hiện trong thư mục `output` của bạn.
+Dự án này cung cấp một pipeline xử lý dữ liệu hoàn chỉnh và một bộ dữ liệu đã được xác thực, được xây dựng với một mục tiêu cốt lõi: tạo ra nền tảng để phát triển các **Hệ thống Phát hiện Xâm nhập Mạng (NIDS)** thế hệ mới, có khả năng triển khai thực tế và hoạt động hiệu quả tại **lớp biên (edge)** của mạng.
 
 ---
 
-### Xử lý Hàng loạt (Tùy chọn)
+## 1. Vấn đề: "Khoảng cách Triển khai" trong NIDS
 
-Nếu bạn có nhiều file, hãy tạo một script `run_all.ps1` (cho Windows) hoặc `run_all.sh` (cho macOS/Linux) bên trong thư mục `cic_work` với nội dung dưới đây, sau đó chạy nó.
+Hầu hết các mô hình NIDS dựa trên học máy (ML) đều thất bại khi triển khai trong thực tế. Lý do là sự **Thiếu nhất quán Đặc trưng (Feature Inconsistency)**:
 
-#### **Cho Windows (file `run_all.ps1`)**
-```powershell
-# Lặp qua tất cả các file .pcap trong thư mục data
-Get-ChildItem -Path ".\data" -Filter *.pcap | ForEach-Object {
-    $baseName = $_.BaseName
-    Write-Host "--- Processing $($baseName) ---"
-    docker run --rm -v "./data:/app/data" -v "./output:/app/output" poeency/nfstream-cic-ids-pipeline:latest python src/run_extraction.py "/app/data/$($_.Name)" "/app/output/$($baseName.ToLower())_raw_flows.parquet"
-}
+Các mô hình được huấn luyện trong môi trường lab (sử dụng các bộ công cụ nặng như `CICFlowMeter`) dựa trên các đặc trưng mà các thiết bị biên (như Raspberry Pi, router) không thể trích xuất được trong thời gian thực do hạn chế về tài nguyên. Điều này tạo ra một **"Khoảng cách Triển khai" (The Deployment Gap)**, khiến các cảnh báo an ninh trở nên không đáng tin cậy.
+
+## 2. Giải pháp: Pipeline Đồng nhất với NFStream
+
+Dự án này giải quyết "Khoảng cách Triển khai" bằng cách đề xuất một **chuỗi công cụ đồng nhất (unified toolchain)**. Chúng tôi thay thế hoàn toàn `CICFlowMeter` bằng **[`NFStream`](https://github.com/nfstream/nfstream)**—một bộ trích xuất luồng mạng nhẹ, hiệu năng cao—cho cả hai giai đoạn:
+
+* **Huấn luyện (Offline):** Phân tích file `.pcap` thô từ bộ dữ liệu **[CIC-IDS-2017](https://www.unb.ca/cic/datasets/ids-2017.html)**.
+* **Triển khai (Online):** Giám sát traffic mạng trực tiếp trên thiết bị biên.
+
+Cách tiếp cận này đảm bảo các đặc trưng mà mô hình học được giống hệt 100% với các đặc trưng mà nó sẽ thấy trong thực tế, mang lại các cảnh báo an ninh chính xác và đáng tin cậy.
+
+## 3. Nội dung Kho lưu trữ (Repository)
+
+Repo này cung cấp:
+
+1.  **Pipeline Xử lý Dữ liệu:** Một pipeline `Python/Docker` hoàn chỉnh (trong `src/`) để chuyển đổi `.pcap` thô -> `.parquet` (đặc trưng NFStream) -> `.csv` (đã gán nhãn).
+2.  **Logic Gán nhãn Nâng cao:** Một bộ quy tắc gán nhãn tinh chỉnh (hybrid labeling) cho CIC-IDS-2017, có khả năng xử lý các yếu tố thực tế như **NAT** và phân biệt `PortScan`/`DDoS` bằng heuristic hành vi.
+3.  **Báo cáo Xác thực (Validation):** Một báo cáo phân tích chi tiết chứng minh rằng `NFStream` bảo toàn được bản chất dữ liệu và các lớp tấn công vẫn có khả năng phân tách cao.
+
+## 4. Bằng chứng về Chất lượng Dữ liệu
+
+Việc thay đổi công cụ trích xuất đặc trưng là vô nghĩa nếu nó làm mất đi bản chất của dữ liệu. Chúng tôi đã xác thực không gian đặc trưng 86 chiều mới do `NFStream` tạo ra.
+
+Kết quả phân tích t-SNE (xem bên dưới) cho thấy các lớp tấn công (`DDoS`, `PortScan`, `Botnet`) và traffic `Benign` vẫn tạo thành các cụm riêng biệt, có ranh giới rõ ràng. Điều này khẳng định dữ liệu có **tính khả học (learnability)** rất cao.
+
+![t-SNE Visualization of NFStream Features](docs/images/tsne_visualization.png)
+
+
+➡️ **Xem Báo cáo Phân tích và Xác thực Dữ liệu chi tiết tại: [docs/ANALYSIS.md](./docs/ANALYSIS.md)**
+
+## 5. Hướng dẫn Sử dụng và Tái tạo
+
+Toàn bộ hướng dẫn chi tiết về cách thiết lập môi trường (Docker), chuẩn bị dữ liệu, và chạy pipeline được đặt trong một tài liệu riêng.
+
+➡️ **Xem Hướng dẫn Bắt đầu tại: [GUIDE.md](./GUIDE.md)**
+
+## 6. Cấu trúc Thư mục
+```plaintext
+\NFStream-CIC-IDS-Pipeline
+├── GUIDE.md
+├── .gitignore
+├── .dockerignore
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── data
+│   ├── Monday-WorkingHours.pcap
+│   ├── ...
+├── output
+│   ├── monday_raw_flows.parquet
+│   └── ...
+└── src
+    ├── __init__.py
+    ├── run_extraction.py
+    ├── run_labeling.py
+    └── labelers
+        ├── __init__.py
+        └── friday_labeler.py
 ```
-**Cách chạy:** Mở PowerShell trong thư mục `cic_work` và gõ `.\run_all.ps1`.
 
-#### **Cho macOS / Linux (file `run_all.sh`)**
-```bash
-#!/bin/bash
-for pcap_file in ./data/*.pcap; do
-    base_name=$(basename "$pcap_file" .pcap)
-    echo "--- Processing $base_name ---"
-    docker run --rm -v "./data:/app/data" -v "./output:/app/output" poeency/nfstream-cic-ids-pipeline:latest python src/run_extraction.py "/app/data/$(basename $pcap_file)" "/app/output/$(echo $base_name | tr '[:upper:]' '[:lower:]')_raw_flows.parquet"
-done
-```
-**Cách chạy:** Mở Terminal trong thư mục `cic_work` và gõ `bash run_all.sh`.
-
-## 5. Xử lý Sự cố (Troubleshooting)
-
--   **Lỗi:** `docker: command not found` (hoặc tương tự).
-    -   **Nguyên nhân:** Docker chưa được cài đặt hoặc chưa được khởi động.
-    -   **Giải pháp:** Cài đặt Docker Desktop và đảm bảo nó đang chạy.
-
--   **Lỗi:** `File not found` (báo từ bên trong container).
-    -   **Nguyên nhân:** Cấu trúc thư mục ở Bước 2 bị sai, hoặc lệnh `docker-compose run` được thực thi từ một thư mục khác.
-    -   **Giải pháp:** Đảm bảo các file `.pcap` nằm trong thư mục `data/` và lệnh được chạy từ thư mục gốc của dự án.
-
--   **Lỗi (Windows/macOS):** `path is not shared` hoặc `permission denied`.
-    -   **Nguyên nhân:** Docker Desktop cần được cấp quyền để truy cập vào ổ đĩa/thư mục chứa dự án.
-    -   **Giải pháp:** Mở **Settings** của Docker Desktop -> **Resources** -> **File Sharing**. Thêm đường dẫn đến thư mục dự án (ví dụ: `D:\NCKH_Project`) và bấm **Apply & Restart**.
+## 7. Tác giả
+Dự án này được phát triển và duy trì bởi **Trần Thanh Nhã**, thuộc **CraftForge Team**.
