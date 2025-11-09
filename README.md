@@ -11,187 +11,56 @@ Pipeline này được đóng gói bằng Docker và được thiết kế để
 ## 2. Yêu cầu Cài đặt (Prerequisites)
 
 Cần đảm bảo các công cụ sau đã được cài đặt và đang hoạt động trên hệ thống:
-*   **Git:** Để tải (clone) kho lưu trữ.
 *   **Docker Desktop:** Để xây dựng (build) và chạy (run) môi trường container. (Tải tại: `https://www.docker.com/products/docker-desktop/`)
 *   **Dung lượng đĩa trống:** Tối thiểu 100GB (khuyến nghị) để chứa bộ dữ liệu `.pcap` gốc và các file `.parquet` đầu ra.
 
-## 3. Quy trình Thực thi
+### 3. Chạy Xử lý
+1.  Mở **PowerShell** (trên Windows) hoặc **Terminal** (trên macOS/Linux).
+2.  Dùng lệnh `cd` để đi vào thư mục `cic_work` của bạn.
+    ```bash
+    cd path/to/your/cic_work
+    ```
+3.  **Sao chép và dán lệnh dưới đây** để xử lý file. Lệnh này sẽ tự động tải image `poeency/nfstream-cic-ids-pipeline` từ Docker Hub về nếu bạn chưa có.
 
-### Bước 1: Tải Mã nguồn (Clone Repository)
-
-Mở Terminal hoặc PowerShell, sao chép kho lưu trữ về máy và di chuyển vào thư mục dự án:
-
+💡 **Lệnh để xử lý ngày Thứ Hai:**
 ```bash
-git clone https://github.com/PoeenCy/NFStream-CIC-IDS-Pipeline.git
-cd NFStream-CIC-IDS-Pipeline
+docker run --rm -v "./data:/app/data" -v "./output:/app/output" poeency/nfstream-cic-ids-pipeline:latest python src/run_extraction.py /app/data/Monday-WorkingHours.pcap /app/output/monday_raw_flows.parquet
 ```
 
-### Bước 2: Chuẩn bị Dữ liệu Thô (`.pcap`)
-
-1.  Tải các file `.pcap` gốc từ trang chủ [CIC-IDS-2017](http://cicresearch.ca/CICDataset/CIC-IDS-2017/Dataset/CIC-IDS-2017/PCAPs/).
-2.  Tạo một thư mục mới tên là `data` bên trong thư mục dự án.
-3.  Sao chép tất cả các file `.pcap` đã tải vào thư mục `data` vừa tạo.
-
-Cấu trúc thư mục của dự án lúc này sẽ là:
-```plaintext
-NFStream-CIC-IDS-Pipeline/
-├── data/
-│   ├── Monday-WorkingHours.pcap
-│   ├── Tuesday-WorkingHours.pcap
-│   └── ...
-├── src/
-│   ├── run_extraction.py
-├── Dockerfile
-├── docker-compose.yml
-└── ... (các file khác)
-```
-*(Lưu ý: Thư mục `data/` và `output/` được cấu hình trong `.gitignore` để tránh đưa dữ liệu lớn lên Git).*
-
-### Bước 3: Xây dựng (Build) Image Docker
-
-Trước khi chạy lần đầu tiên, cần build image Docker. Lệnh này sẽ đọc `Dockerfile` và cài đặt tất cả các thư viện (như `nfstream`, `pandas`) vào một image cục bộ tên là `extractor`.
-
+💡 **Ví dụ: Để xử lý ngày Thứ Ba,** chỉ cần thay đổi tên file:
 ```bash
-docker-compose build
+docker run --rm -v "./data:/app/data" -v "./output:/app/output" poeency/nfstream-cic-ids-pipeline:latest python src/run_extraction.py /app/data/Tuesday-WorkingHours.pcap /app/output/tuesday_raw_flows.parquet
 ```
 
-### Bước 4: Thực thi Giai đoạn 1 (Trích xuất `.parquet`)
+Sau khi lệnh chạy xong, file `.parquet` tương ứng sẽ xuất hiện trong thư mục `output` của bạn.
 
-Sử dụng `docker-compose run` để thực thi script `run_extraction.py` bên trong container. Container sẽ tự động ánh xạ (mount) thư mục `data/` (đầu vào) và `output/` (đầu ra).
+---
 
-**Lệnh mẫu (Xử lý ngày Thứ Hai):**
-```bash
-docker-compose run --rm extractor \
-  python src/run_extraction.py /app/data/Monday-WorkingHours.pcap /app/output/monday_raw_flows.parquet
+### Xử lý Hàng loạt (Tùy chọn)
+
+Nếu bạn có nhiều file, hãy tạo một script `run_all.ps1` (cho Windows) hoặc `run_all.sh` (cho macOS/Linux) bên trong thư mục `cic_work` với nội dung dưới đây, sau đó chạy nó.
+
+#### **Cho Windows (file `run_all.ps1`)**
+```powershell
+# Lặp qua tất cả các file .pcap trong thư mục data
+Get-ChildItem -Path ".\data" -Filter *.pcap | ForEach-Object {
+    $baseName = $_.BaseName
+    Write-Host "--- Processing $($baseName) ---"
+    docker run --rm -v "./data:/app/data" -v "./output:/app/output" poeency/nfstream-cic-ids-pipeline:latest python src/run_extraction.py "/app/data/$($_.Name)" "/app/output/$($baseName.ToLower())_raw_flows.parquet"
+}
 ```
+**Cách chạy:** Mở PowerShell trong thư mục `cic_work` và gõ `.\run_all.ps1`.
 
-**Lệnh mẫu (Xử lý ngày Thứ Ba):**
-```bash
-docker-compose run --rm extractor \
-  python src/run_extraction.py /app/data/Tuesday-WorkingHours.pcap /app/output/tuesday_raw_flows.parquet
-```
-- `--rm`: Tự động xóa container sau khi chạy xong để giữ hệ thống sạch sẽ.
-- `extractor`: Tên của service được định nghĩa trong `docker-compose.yml`.
-- `/app/data/` và `/app/output/`: Là các đường dẫn bên trong container, tương ứng với thư mục `data/` và `output/` trên máy của bạn.
-
-Quá trình này sẽ mất nhiều thời gian và sẽ hiển thị một thanh tiến độ trong terminal.
-
-### Bước 5: Kiểm tra Kết quả (Giai đoạn 1)
-
-Sau khi hoàn tất, một thư mục `output/` sẽ được tự động tạo ra (nếu chưa tồn tại) ở thư mục gốc dự án, chứa các file `.parquet` đã được xử lý.
-
-```plaintext
-NFStream-CIC-IDS-Pipeline/
-├── data/
-│   └── ... (file .pcap)
-├── output/
-│   ├── monday_raw_flows.parquet
-│   └── tuesday_raw_flows.parquet
-└── src/
-    └── ...
-```
-
-## 5. Xử lý Hàng loạt (Batch Processing)
-
-Việc chạy từng lệnh cho mỗi file rất tốn thời gian. Các script dưới đây giúp tự động hóa quá trình này.
-
-### 1. Trên Linux/macOS (Bash Script)
-
-Tạo file `run_all.sh` trong thư mục gốc dự án:
-
+#### **Cho macOS / Linux (file `run_all.sh`)**
 ```bash
 #!/bin/bash
-# run_all.sh
-# Tự động tìm tất cả file .pcap trong ./data và chạy Giai đoạn 1.
-
-echo "--- BẮT ĐẦU XỬ LÝ HÀNG LOẠT ---"
-# Đảm bảo image được build
-docker-compose build
-
-DATA_DIR="./data"
-OUTPUT_DIR="./output"
-
-# Tạo thư mục output nếu chưa có
-mkdir -p $OUTPUT_DIR
-
-# Kiểm tra thư mục data
-if [ ! -d "$DATA_DIR" ]; then
-    echo "LỖI: Không tìm thấy thư mục 'data'. Vui lòng tạo và đặt các file .pcap vào đó."
-    exit 1
-fi
-
-# Lặp qua từng file .pcap
-for pcap_file in "$DATA_DIR"/*.pcap; do
+for pcap_file in ./data/*.pcap; do
     base_name=$(basename "$pcap_file" .pcap)
-    
-    input_path="/app/data/${base_name}.pcap"
-    output_path="/app/output/${base_name,,}_raw_flows.parquet" # Chuyển tên sang chữ thường
-
-    echo "=================================================="
-    echo "Đang xử lý: $base_name"
-    echo "=================================================="
-
-    docker-compose run --rm extractor python src/run_extraction.py "$input_path" "$output_path"
+    echo "--- Processing $base_name ---"
+    docker run --rm -v "./data:/app/data" -v "./output:/app/output" poeency/nfstream-cic-ids-pipeline:latest python src/run_extraction.py "/app/data/$(basename $pcap_file)" "/app/output/$(echo $base_name | tr '[:upper:]' '[:lower:]')_raw_flows.parquet"
 done
-
-echo "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---"
 ```
-
-**Cách chạy:**
-```bash
-chmod +x run_all.sh
-./run_all.sh
-```
-
-### 2. Trên Windows (PowerShell Script)
-
-Tạo file `run_all.ps1` trong thư mục gốc dự án:
-
-```powershell
-# run_all.ps1
-# Tự động tìm tất cả file .pcap trong ./data và chạy Giai đoạn 1.
-
-Write-Host "--- BẮT ĐẦU XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
-# Đảm bảo image được build
-docker-compose build
-
-$dataDir = ".\data"
-$outputDir = ".\output"
-
-# Tạo thư mục output nếu chưa có
-if (-not (Test-Path $outputDir)) {
-    New-Item -ItemType Directory -Path $outputDir
-}
-
-# Kiểm tra thư mục data
-if (-not (Test-Path $dataDir -PathType Container)) {
-    Write-Host "LỖI: Không tìm thấy thư mục 'data'. Vui lòng tạo và đặt các file .pcap vào đó." -ForegroundColor Red
-    exit 1
-}
-
-$pcapFiles = Get-ChildItem -Path $dataDir -Filter *.pcap
-
-foreach ($pcapFile in $pcapFiles) {
-    $baseName = $pcapFile.BaseName
-    
-    $inputPath = "/app/data/$($pcapFile.Name)"
-    $outputPath = "/app/output/$($baseName.ToLower())_raw_flows.parquet" # Chuyển tên sang chữ thường
-
-    Write-Host "==================================================" -ForegroundColor Cyan
-    Write-Host "Đang xử lý: $baseName" -ForegroundColor Cyan
-    Write-Host "==================================================" -ForegroundColor Cyan
-
-    docker-compose run --rm extractor python src/run_extraction.py $inputPath $outputPath
-}
-
-Write-Host "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
-```
-
-**Cách chạy:**
-```powershell
-.\run_all.ps1
-```
-*(Lưu ý: Nếu gặp lỗi execution policy, có thể cần chạy `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` trước).*
+**Cách chạy:** Mở Terminal trong thư mục `cic_work` và gõ `bash run_all.sh`.
 
 ## 5. Xử lý Sự cố (Troubleshooting)
 
