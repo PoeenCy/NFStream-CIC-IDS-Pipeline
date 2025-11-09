@@ -7,7 +7,6 @@ Tài liệu này cung cấp hướng dẫn kỹ thuật đầy đủ để cài 
 Pipeline này được đóng gói bằng Docker và được thiết kế để thực hiện hai nhiệm vụ chính:
 
 1.  **Giai đoạn 1 (Trích xuất):** Đọc các file `.pcap` thô (từ CIC-IDS-2017), sử dụng `nfstream` để trích xuất đặc trưng, và lưu kết quả dưới dạng file `.parquet`.
-2.  **Giai đoạn 2 (Gán nhãn):** (Tùy chọn) Đọc các file `.parquet` đã trích xuất, áp dụng logic gán nhãn tùy chỉnh, và lưu kết quả cuối cùng dưới dạng file `.csv`.
 
 ## 2. Yêu cầu Cài đặt (Prerequisites)
 
@@ -35,19 +34,28 @@ cd NFStream-CIC-IDS-Pipeline
 
 Cấu trúc thư mục của dự án lúc này sẽ là:
 ```plaintext
-NFStream-CIC-IDS-Pipeline/
-├── data/
-│   ├── Monday-WorkingHours.pcap
-│   ├── Tuesday-WorkingHours.pcap
-│   └── ...
-├── src/
-│   ├── run_extraction.py
-│   └── run_labeling.py
+\NFStream-CIC-IDS-Pipeline
+├── GUIDE.md
+├── .gitignore
+├── .dockerignore
 ├── Dockerfile
 ├── docker-compose.yml
-└── ... (các file khác)
+├── requirements.txt
+├── data
+│   ├── Monday-WorkingHours.pcap
+│   ├── ...
+├── output
+│   ├── monday_raw_flows.parquet
+│   └── ...
+└── src
+    ├── __init__.py
+    ├── run_extraction.py
+    ├── run_labeling.py
+    └── labelers
+        ├── __init__.py
+        └── friday_labeler.py
 ```
-*(Lưu ý: Thư mục `data/` và `output/` được cấu hình trong `.gitignore` để tránh đưa dữ liệu lớn lên Git).*
+*(Lưu ý: Thư mục `data/` được cấu hình trong `.gitignore` để tránh đưa dữ liệu lớn lên Git).*
 
 ### Bước 3: Xây dựng (Build) Image Docker
 
@@ -91,15 +99,6 @@ NFStream-CIC-IDS-Pipeline/
 │   └── tuesday_raw_flows.parquet
 └── src/
     └── ...
-```
-
-### Bước 6: (Tùy chọn) Thực thi Giai đoạn 2 (Gán nhãn `.csv`)
-
-Sau khi đã có file `.parquet`, có thể chạy script `run_labeling.py` để gán nhãn và tạo file `.csv` cuối cùng.
-
-```bash
-docker-compose run --rm extractor \
-  python src/run_labeling.py /app/output/monday_raw_flows.parquet /app/output/monday_labeled_data.csv
 ```
 
 ## 5. Xử lý Hàng loạt (Batch Processing)
@@ -204,7 +203,7 @@ Write-Host "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
 ```
 *(Lưu ý: Nếu gặp lỗi execution policy, có thể cần chạy `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` trước).*
 
-## 6. Xử lý Sự cố (Troubleshooting)
+## 5. Xử lý Sự cố (Troubleshooting)
 
 -   **Lỗi:** `docker: command not found` (hoặc tương tự).
     -   **Nguyên nhân:** Docker chưa được cài đặt hoặc chưa được khởi động.

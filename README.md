@@ -1,71 +1,208 @@
-# NFStream-CIC-IDS-Pipeline
+# Hướng dẫn Cài đặt và Thực thi Pipeline
 
-![Python](https://img.shields.io/badge/python-3.10%2B-brightgreen.svg)
-![Docker](https://img.shields.io/badge/docker-Ready-blue.svg)
+Tài liệu này cung cấp hướng dẫn kỹ thuật đầy đủ để cài đặt môi trường, chuẩn bị dữ liệu và thực thi pipeline xử lý dữ liệu từ kho lưu trữ này.
 
-Dự án này cung cấp một pipeline xử lý dữ liệu hoàn chỉnh và một bộ dữ liệu đã được xác thực, được xây dựng với một mục tiêu cốt lõi: tạo ra nền tảng để phát triển các **Hệ thống Phát hiện Xâm nhập Mạng (NIDS)** thế hệ mới, có khả năng triển khai thực tế và hoạt động hiệu quả tại **lớp biên (edge)** của mạng.
+## 1. Giới thiệu
 
----
+Pipeline này được đóng gói bằng Docker và được thiết kế để thực hiện hai nhiệm vụ chính:
 
-## 1. Vấn đề: "Khoảng cách Triển khai" trong NIDS
+1.  **Giai đoạn 1 (Trích xuất):** Đọc các file `.pcap` thô (từ CIC-IDS-2017), sử dụng `nfstream` để trích xuất đặc trưng, và lưu kết quả dưới dạng file `.parquet`.
 
-Hầu hết các mô hình NIDS dựa trên học máy (ML) đều thất bại khi triển khai trong thực tế. Lý do là sự **Thiếu nhất quán Đặc trưng (Feature Inconsistency)**:
+## 2. Yêu cầu Cài đặt (Prerequisites)
 
-Các mô hình được huấn luyện trong môi trường lab (sử dụng các bộ công cụ nặng như `CICFlowMeter`) dựa trên các đặc trưng mà các thiết bị biên (như Raspberry Pi, router) không thể trích xuất được trong thời gian thực do hạn chế về tài nguyên. Điều này tạo ra một **"Khoảng cách Triển khai" (The Deployment Gap)**, khiến các cảnh báo an ninh trở nên không đáng tin cậy.
+Cần đảm bảo các công cụ sau đã được cài đặt và đang hoạt động trên hệ thống:
+*   **Git:** Để tải (clone) kho lưu trữ.
+*   **Docker Desktop:** Để xây dựng (build) và chạy (run) môi trường container. (Tải tại: `https://www.docker.com/products/docker-desktop/`)
+*   **Dung lượng đĩa trống:** Tối thiểu 100GB (khuyến nghị) để chứa bộ dữ liệu `.pcap` gốc và các file `.parquet` đầu ra.
 
-## 2. Giải pháp: Pipeline Đồng nhất với NFStream
+## 3. Quy trình Thực thi
 
-Dự án này giải quyết "Khoảng cách Triển khai" bằng cách đề xuất một **chuỗi công cụ đồng nhất (unified toolchain)**. Chúng tôi thay thế hoàn toàn `CICFlowMeter` bằng **[`NFStream`](https://github.com/nfstream/nfstream)**—một bộ trích xuất luồng mạng nhẹ, hiệu năng cao—cho cả hai giai đoạn:
+### Bước 1: Tải Mã nguồn (Clone Repository)
 
-* **Huấn luyện (Offline):** Phân tích file `.pcap` thô từ bộ dữ liệu **[CIC-IDS-2017](https://www.unb.ca/cic/datasets/ids-2017.html)**.
-* **Triển khai (Online):** Giám sát traffic mạng trực tiếp trên thiết bị biên.
+Mở Terminal hoặc PowerShell, sao chép kho lưu trữ về máy và di chuyển vào thư mục dự án:
 
-Cách tiếp cận này đảm bảo các đặc trưng mà mô hình học được giống hệt 100% với các đặc trưng mà nó sẽ thấy trong thực tế, mang lại các cảnh báo an ninh chính xác và đáng tin cậy.
-
-## 3. Nội dung Kho lưu trữ (Repository)
-
-Repo này cung cấp:
-
-1.  **Pipeline Xử lý Dữ liệu:** Một pipeline `Python/Docker` hoàn chỉnh (trong `src/`) để chuyển đổi `.pcap` thô -> `.parquet` (đặc trưng NFStream) -> `.csv` (đã gán nhãn).
-2.  **Logic Gán nhãn Nâng cao:** Một bộ quy tắc gán nhãn tinh chỉnh (hybrid labeling) cho CIC-IDS-2017, có khả năng xử lý các yếu tố thực tế như **NAT** và phân biệt `PortScan`/`DDoS` bằng heuristic hành vi.
-3.  **Báo cáo Xác thực (Validation):** Một báo cáo phân tích chi tiết chứng minh rằng `NFStream` bảo toàn được bản chất dữ liệu và các lớp tấn công vẫn có khả năng phân tách cao.
-
-## 4. Bằng chứng về Chất lượng Dữ liệu
-
-Việc thay đổi công cụ trích xuất đặc trưng là vô nghĩa nếu nó làm mất đi bản chất của dữ liệu. Chúng tôi đã xác thực không gian đặc trưng 86 chiều mới do `NFStream` tạo ra.
-
-Kết quả phân tích t-SNE (xem bên dưới) cho thấy các lớp tấn công (`DDoS`, `PortScan`, `Botnet`) và traffic `Benign` vẫn tạo thành các cụm riêng biệt, có ranh giới rõ ràng. Điều này khẳng định dữ liệu có **tính khả học (learnability)** rất cao.
-
-![t-SNE Visualization](docs/images/tsne_visualization.png)
-
-➡️ **Xem Báo cáo Phân tích và Xác thực Dữ liệu chi tiết tại: [docs/ANALYSIS.md](./docs/ANALYSIS.md)**
-
-## 5. Hướng dẫn Sử dụng và Tái tạo
-
-Toàn bộ hướng dẫn chi tiết về cách thiết lập môi trường (Docker), chuẩn bị dữ liệu, và chạy pipeline được đặt trong một tài liệu riêng.
-
-➡️ **Xem Hướng dẫn Bắt đầu tại: [GUIDE.md](./GUIDE.md)**
-
-## 6. Cấu trúc Thư mục
-
+```bash
+git clone https://github.com/PoeenCy/NFStream-CIC-IDS-Pipeline.git
+cd NFStream-CIC-IDS-Pipeline
 ```
-. ├── data/ # (Bị bỏ qua bởi .gitignore) 
-│ ├── raw/ # Đặt file .pcap gốc tại đây 
-│ ├── processed/ # Đầu ra .parquet 
-│ └── labeled/ # Đầu ra .csv cuối cùng 
-├── docs/ 
-│ ├── ANALYSIS.md # Báo cáo phân tích (t-SNE, Boxplots) 
-│ └── images/ # Hình ảnh cho tài liệu 
-├── src/ 
-│ ├── main.py # Bộ điều phối chính 
-│ ├── config.py # "Bộ não" chứa IP, ngưỡng 
-│ ├── feature_extractor.py 
-│ └── labelers/ 
-├── Dockerfile 
-├── docker-compose.yml 
-├── requirements.txt 
-└── README.md 
-```
-## 7. Đóng góp
-Dự án này được phát triển và duy trì bởi **Trần Thanh Nhã**, thuộc **CFT**.
 
+### Bước 2: Chuẩn bị Dữ liệu Thô (`.pcap`)
+
+1.  Tải các file `.pcap` gốc từ trang chủ [CIC-IDS-2017](http://cicresearch.ca/CICDataset/CIC-IDS-2017/Dataset/CIC-IDS-2017/PCAPs/).
+2.  Tạo một thư mục mới tên là `data` bên trong thư mục dự án.
+3.  Sao chép tất cả các file `.pcap` đã tải vào thư mục `data` vừa tạo.
+
+Cấu trúc thư mục của dự án lúc này sẽ là:
+```plaintext
+NFStream-CIC-IDS-Pipeline/
+├── data/
+│   ├── Monday-WorkingHours.pcap
+│   ├── Tuesday-WorkingHours.pcap
+│   └── ...
+├── src/
+│   ├── run_extraction.py
+├── Dockerfile
+├── docker-compose.yml
+└── ... (các file khác)
+```
+*(Lưu ý: Thư mục `data/` và `output/` được cấu hình trong `.gitignore` để tránh đưa dữ liệu lớn lên Git).*
+
+### Bước 3: Xây dựng (Build) Image Docker
+
+Trước khi chạy lần đầu tiên, cần build image Docker. Lệnh này sẽ đọc `Dockerfile` và cài đặt tất cả các thư viện (như `nfstream`, `pandas`) vào một image cục bộ tên là `extractor`.
+
+```bash
+docker-compose build
+```
+
+### Bước 4: Thực thi Giai đoạn 1 (Trích xuất `.parquet`)
+
+Sử dụng `docker-compose run` để thực thi script `run_extraction.py` bên trong container. Container sẽ tự động ánh xạ (mount) thư mục `data/` (đầu vào) và `output/` (đầu ra).
+
+**Lệnh mẫu (Xử lý ngày Thứ Hai):**
+```bash
+docker-compose run --rm extractor \
+  python src/run_extraction.py /app/data/Monday-WorkingHours.pcap /app/output/monday_raw_flows.parquet
+```
+
+**Lệnh mẫu (Xử lý ngày Thứ Ba):**
+```bash
+docker-compose run --rm extractor \
+  python src/run_extraction.py /app/data/Tuesday-WorkingHours.pcap /app/output/tuesday_raw_flows.parquet
+```
+- `--rm`: Tự động xóa container sau khi chạy xong để giữ hệ thống sạch sẽ.
+- `extractor`: Tên của service được định nghĩa trong `docker-compose.yml`.
+- `/app/data/` và `/app/output/`: Là các đường dẫn bên trong container, tương ứng với thư mục `data/` và `output/` trên máy của bạn.
+
+Quá trình này sẽ mất nhiều thời gian và sẽ hiển thị một thanh tiến độ trong terminal.
+
+### Bước 5: Kiểm tra Kết quả (Giai đoạn 1)
+
+Sau khi hoàn tất, một thư mục `output/` sẽ được tự động tạo ra (nếu chưa tồn tại) ở thư mục gốc dự án, chứa các file `.parquet` đã được xử lý.
+
+```plaintext
+NFStream-CIC-IDS-Pipeline/
+├── data/
+│   └── ... (file .pcap)
+├── output/
+│   ├── monday_raw_flows.parquet
+│   └── tuesday_raw_flows.parquet
+└── src/
+    └── ...
+```
+
+## 5. Xử lý Hàng loạt (Batch Processing)
+
+Việc chạy từng lệnh cho mỗi file rất tốn thời gian. Các script dưới đây giúp tự động hóa quá trình này.
+
+### 1. Trên Linux/macOS (Bash Script)
+
+Tạo file `run_all.sh` trong thư mục gốc dự án:
+
+```bash
+#!/bin/bash
+# run_all.sh
+# Tự động tìm tất cả file .pcap trong ./data và chạy Giai đoạn 1.
+
+echo "--- BẮT ĐẦU XỬ LÝ HÀNG LOẠT ---"
+# Đảm bảo image được build
+docker-compose build
+
+DATA_DIR="./data"
+OUTPUT_DIR="./output"
+
+# Tạo thư mục output nếu chưa có
+mkdir -p $OUTPUT_DIR
+
+# Kiểm tra thư mục data
+if [ ! -d "$DATA_DIR" ]; then
+    echo "LỖI: Không tìm thấy thư mục 'data'. Vui lòng tạo và đặt các file .pcap vào đó."
+    exit 1
+fi
+
+# Lặp qua từng file .pcap
+for pcap_file in "$DATA_DIR"/*.pcap; do
+    base_name=$(basename "$pcap_file" .pcap)
+    
+    input_path="/app/data/${base_name}.pcap"
+    output_path="/app/output/${base_name,,}_raw_flows.parquet" # Chuyển tên sang chữ thường
+
+    echo "=================================================="
+    echo "Đang xử lý: $base_name"
+    echo "=================================================="
+
+    docker-compose run --rm extractor python src/run_extraction.py "$input_path" "$output_path"
+done
+
+echo "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---"
+```
+
+**Cách chạy:**
+```bash
+chmod +x run_all.sh
+./run_all.sh
+```
+
+### 2. Trên Windows (PowerShell Script)
+
+Tạo file `run_all.ps1` trong thư mục gốc dự án:
+
+```powershell
+# run_all.ps1
+# Tự động tìm tất cả file .pcap trong ./data và chạy Giai đoạn 1.
+
+Write-Host "--- BẮT ĐẦU XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
+# Đảm bảo image được build
+docker-compose build
+
+$dataDir = ".\data"
+$outputDir = ".\output"
+
+# Tạo thư mục output nếu chưa có
+if (-not (Test-Path $outputDir)) {
+    New-Item -ItemType Directory -Path $outputDir
+}
+
+# Kiểm tra thư mục data
+if (-not (Test-Path $dataDir -PathType Container)) {
+    Write-Host "LỖI: Không tìm thấy thư mục 'data'. Vui lòng tạo và đặt các file .pcap vào đó." -ForegroundColor Red
+    exit 1
+}
+
+$pcapFiles = Get-ChildItem -Path $dataDir -Filter *.pcap
+
+foreach ($pcapFile in $pcapFiles) {
+    $baseName = $pcapFile.BaseName
+    
+    $inputPath = "/app/data/$($pcapFile.Name)"
+    $outputPath = "/app/output/$($baseName.ToLower())_raw_flows.parquet" # Chuyển tên sang chữ thường
+
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host "Đang xử lý: $baseName" -ForegroundColor Cyan
+    Write-Host "==================================================" -ForegroundColor Cyan
+
+    docker-compose run --rm extractor python src/run_extraction.py $inputPath $outputPath
+}
+
+Write-Host "--- HOÀN THÀNH XỬ LÝ HÀNG LOẠT ---" -ForegroundColor Green
+```
+
+**Cách chạy:**
+```powershell
+.\run_all.ps1
+```
+*(Lưu ý: Nếu gặp lỗi execution policy, có thể cần chạy `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` trước).*
+
+## 5. Xử lý Sự cố (Troubleshooting)
+
+-   **Lỗi:** `docker: command not found` (hoặc tương tự).
+    -   **Nguyên nhân:** Docker chưa được cài đặt hoặc chưa được khởi động.
+    -   **Giải pháp:** Cài đặt Docker Desktop và đảm bảo nó đang chạy.
+
+-   **Lỗi:** `File not found` (báo từ bên trong container).
+    -   **Nguyên nhân:** Cấu trúc thư mục ở Bước 2 bị sai, hoặc lệnh `docker-compose run` được thực thi từ một thư mục khác.
+    -   **Giải pháp:** Đảm bảo các file `.pcap` nằm trong thư mục `data/` và lệnh được chạy từ thư mục gốc của dự án.
+
+-   **Lỗi (Windows/macOS):** `path is not shared` hoặc `permission denied`.
+    -   **Nguyên nhân:** Docker Desktop cần được cấp quyền để truy cập vào ổ đĩa/thư mục chứa dự án.
+    -   **Giải pháp:** Mở **Settings** của Docker Desktop -> **Resources** -> **File Sharing**. Thêm đường dẫn đến thư mục dự án (ví dụ: `D:\NCKH_Project`) và bấm **Apply & Restart**.
