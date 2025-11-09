@@ -1,0 +1,22 @@
+# Ignore raw pcap files only
+*.pcap
+
+# Common Python / editor / OS ignores (do not ignore data/ or output/)
+__pycache__/
+*.py[cod]
+*.pyo
+
+venv/
+.venv/
+
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Docker / env
+docker-compose.override.yml
+.env
+
+# Misc caches
+.mypy_cache/
+.ipynb_checkpoints/
