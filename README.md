@@ -36,7 +36,7 @@ Việc thay đổi công cụ trích xuất đặc trưng là vô nghĩa nếu n
 
 Kết quả phân tích t-SNE (xem bên dưới) cho thấy các lớp tấn công (`DDoS`, `PortScan`, `Botnet`) và traffic `Benign` vẫn tạo thành các cụm riêng biệt, có ranh giới rõ ràng. Điều này khẳng định dữ liệu có **tính khả học (learnability)** rất cao.
 
-*(Chèn ảnh t-SNE của bạn vào đây)*
+![t-SNE Visualization](docs/images/tsne_visualization.png)
 
 ➡️ **Xem Báo cáo Phân tích và Xác thực Dữ liệu chi tiết tại: [docs/ANALYSIS.md](./docs/ANALYSIS.md)**
 
